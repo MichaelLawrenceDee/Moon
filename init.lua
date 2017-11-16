@@ -185,7 +185,7 @@ function Auxiliary.AddEvoluteProc(c,echeck,stage,...)
 		table.remove(t)
 	end
 	if not extramat then extramat,min,max=aux.FALSE,0,0 end
-	c:EnableCounterPermit(0x91)
+	c:EnableCounterPermit(0x88)
 	local e1=Effect.CreateEffect(c)
 	e1:SetType(EFFECT_TYPE_SINGLE)
 	e1:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE)
@@ -338,7 +338,7 @@ function Auxiliary.EvoluteCounter(e,tp,eg,ep,ev,re,r,rp,c,smat,mg)
 	local g=eg:Filter(Auxiliary.ECSumFilter,nil)
 	local tc=g:GetFirst()
 	while tc do
-		tc:AddCounter(0x91,tc:GetStage())
+		tc:AddCounter(0x88,tc:GetStage())
 		tc=g:GetNext()
 	end
 end
