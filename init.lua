@@ -8,143 +8,185 @@ EFFECT_CANNOT_BE_POLARITY_MATERIAL		=766
 TYPE_EVOLUTE							=0x100000000
 TYPE_PANDEMONIUM						=0x200000000
 TYPE_POLARITY							=0x400000000
+TYPE_CUSTOM								=TYPE_EVOLUTE+TYPE_PANDEMONIUM+TYPE_POLARITY
+
+CTYPE_EVOLUTE							=0x1
+CTYPE_PANDEMONIUM						=0x2
+CTYPE_POLARITY							=0x4
+CTYPE_CUSTOM							=CTYPE_EVOLUTE+CTYPE_PANDEMONIUM+CTYPE_POLARITY
+
+--Custom Type Tables
+Auxiliary.Customs={} --check if card uses custom type, indexing card
+Auxiliary.Evolutes={} --number as index = card, card as index = function() is_xyz
+Auxiliary.Pandemoniums={} --number as index = card, card as index = function() is_pendulum, is_spell_on_field
+Auxiliary.Polarities={} --number as index = card, card as index = function() is_synchro
 
 --overwrite constants
 TYPE_EXTRA=TYPE_FUSION+TYPE_SYNCHRO+TYPE_XYZ+TYPE_LINK+TYPE_EVOLUTE+TYPE_POLARITY
 
+--Custom Functions
+function Card.IsCustomType(c,tpe,scard,sumtype,p)
+	return c:GetType(scard,sumtype,p)&tpe>0
+end
+
 --overwrite functions
-local get_rank=Card.GetRank
+local get_rank, get_orig_rank, prev_rank_field, is_rank, is_rank_below, is_rank_above, get_type, is_type, get_orig_type, get_prev_type_field, get_level, get_syn_level, get_rit_level, get_orig_level, is_xyz_level, 
+	get_prev_level_field, is_level. is_level_below, is_level_above = 
+	Card.GetRank, Card.GetOriginalRank, Card.GetPreviousRankOnField, Card.IsRank, Card.IsRankBelow, Card.IsRankAbove, Card.GetType, Card.IsType, Card.GetOriginalType, Card.GetPreviousTypeOnField, Card.GetLevel, 
+	Card.GetSynchroLevel, Card.GetRitualLevel, Card.GetOriginalLevel, Card.IsXyzLevel, Card.GetPreviousLevelOnField, Card.IsLevel, Card.IsLevelBelow, Card.IsLevelAbove
+
 Card.GetRank=function(c)
-	if c:IsHasEffect(EFFECT_STAGE) then return 0 end
+	if Auxiliary.Evolutes[c] then return 0 end
 	return get_rank(c)
 end
-local get_orig_rank=Card.GetOriginalRank
 Card.GetOriginalRank=function(c)
-	if c:IsHasEffect(EFFECT_STAGE) then return 0 end
+	if Auxiliary.Evolutes[c] and not Auxiliary.Evolutes[c]() then return 0 end
 	return get_orig_rank(c)
 end
-local prev_rank_field=Card.GetPreviousRankOnField
 Card.GetPreviousRankOnField=function(c)
-	if c:IsHasEffect(EFFECT_STAGE) then return 0 end
+	if Auxiliary.Evolutes[c] and not Auxiliary.Evolutes[c]() then return 0 end
 	return prev_rank_field(c)
 end
-local is_rank=Card.IsRank
 Card.IsRank=function(c,rk)
-	if c:IsHasEffect(EFFECT_STAGE) then return false end
+	if Auxiliary.Evolutes[c] and not Auxiliary.Evolutes[c]() then return false end
 	return is_rank(c,rk)
 end
-local is_rank_below=Card.IsRankBelow
 Card.IsRankBelow=function(c,rk)
-	if c:IsHasEffect(EFFECT_STAGE) then return false end
+	if Auxiliary.Evolutes[c] and not Auxiliary.Evolutes[c]() then return false end
 	return is_rank_below(c,rk)
 end
-local is_rank_above=Card.IsRankAbove
 Card.IsRankAbove=function(c,rk)
-	if c:IsHasEffect(EFFECT_STAGE) then return false end
+	if Auxiliary.Evolutes[c] and not Auxiliary.Evolutes[c]() then return false end
 	return is_rank_above(c,rk)
 end
-local get_type=Card.GetType
 Card.GetType=function(c,scard,sumtype,p)
 	local tpe=get_type(c,scard,sumtype,p)
-	if c:IsHasEffect(EFFECT_STAGE) and tpe&TYPE_XYZ>0 then
-		tpe=(tpe|TYPE_EVOLUTE)~TYPE_XYZ
-	end
-	if c:IsHasEffect(EFFECT_PANDEMONIUM) and tpe&TYPE_PENDULUM>0 then
-		tpe=(tpe|TYPE_PANDEMONIUM)~TYPE_PENDULUM
-		if c:IsLocation(LOCATION_PZONE) then
-			tpe=(tpe|TYPE_TRAP)~TYPE_SPELL
+	if Auxiliary.Evolutes[c] then
+		tpe=tpe|TYPE_EVOLUTE
+		if not Auxiliary.Evolutes[c]() then
+			tpe=tpe&~TYPE_XYZ
 		end
 	end
-	if c:IsHasEffect(EFFECT_STABLE) and tpe&TYPE_SYNCHRO>0 then
-		tpe=(tpe|TYPE_POLARITY)~TYPE_SYNCHRO
+	if Auxiliary.Pandemoniums[c] then
+		tpe=tpe|TYPE_PANDEMONIUM
+		local ispen, isspell=Auxiliary.Pandemoniums[c]()
+		if not ispen then
+			tpe=tpe&~TYPE_PENDULUM
+		end
+		if c:IsLocation(LOCATION_PZONE) then
+			tpe=tpe|TYPE_TRAP
+			if not isspell then
+				tpe=tpe&~TYPE_SPELL
+			end
+		end
+	end
+	if Auxiliary.Polarities[c] then
+		tpe=tpe|TYPE_POLARITY
+		if not Auxiliary.Polarities[c]() then
+			tpe=tpe&~TYPE_SYNCHRO
+		end
 	end
 	return tpe
 end
-local is_type=Card.IsType
 Card.IsType=function(c,tpe,scard,sumtype,p)
-	return c:GetType(scard,sumtype,p)&tpe~=0
+	local custpe=tpe>>32
+	local otpe=tpe&0xffffffff
+	if is_type(c,otpe,scard,sumtype,p) then return true end
+	if custpe<=0 then return false end
+	return c:IsCustomType(c,custpe,scard,sumtype,p)
 end
-local get_orig_type=Card.GetOriginalType
 Card.GetOriginalType=function(c)
 	local tpe=get_orig_type(c)
-	if c:IsHasEffect(EFFECT_STAGE) then
-		tpe=(tpe|TYPE_EVOLUTE)~TYPE_XYZ
-	end
-	if c:IsHasEffect(EFFECT_PANDEMONIUM) then
-		tpe=(tpe|TYPE_PANDEMONIUM)~TYPE_PENDULUM
-	end
-	if c:IsHasEffect(EFFECT_STABLE) then
-		tpe=(tpe|TYPE_POLARITY)~TYPE_SYNCHRO
-	end
-	return tpe
-end
-local get_prev_type_field=Card.GetPreviousTypeOnField
-Card.GetPreviousTypeOnField=function(c)
-	local tpe=get_prev_type_field(c)
-	if c:IsHasEffect(EFFECT_STAGE) and get_prev_type_field(c)&TYPE_XYZ>0 then
-		tpe=(tpe|TYPE_EVOLUTE)~TYPE_XYZ
-	end
-	if c:IsHasEffect(EFFECT_PANDEMONIUM) and tpe&TYPE_PENDULUM>0 then
-		tpe=(tpe|TYPE_PANDEMONIUM)~TYPE_PENDULUM
-		if tpe&TYPE_SPELL>0 then
-			tpe=(tpe|TYPE_TRAP)~TYPE_SPELL
+	if Auxiliary.Evolutes[c] then
+		tpe=tpe|TYPE_EVOLUTE
+		if not Auxiliary.Evolutes[c]() then
+			tpe=tpe&~TYPE_XYZ
 		end
 	end
-	if c:IsHasEffect(EFFECT_STABLE) and get_prev_type_field(c)&TYPE_SYNCHRO>0 then
-		tpe=(tpe|TYPE_POLARITY)~TYPE_SYNCHRO
+	if Auxiliary.Pandemoniums[c] then
+		tpe=tpe|TYPE_PANDEMONIUM
+		if not Auxiliary.Pandemoniums[c]() then
+			tpe=tpe&~TYPE_PENDULUM
+		end
+	end
+	if Auxiliary.Polarities[c] then
+		tpe=tpe|TYPE_POLARITY
+		if not Auxiliary.Polarities[c]() then
+			tpe=tpe&~TYPE_SYNCHRO
+		end
 	end
 	return tpe
 end
-local get_level=Card.GetLevel
+Card.GetPreviousTypeOnField=function(c)
+	local tpe=get_prev_type_field(c)
+	if Auxiliary.Evolutes[c] then
+		tpe=tpe|TYPE_EVOLUTE
+		if not Auxiliary.Evolutes[c]() then
+			tpe=tpe&~TYPE_XYZ
+		end
+	end
+	if Auxiliary.Pandemoniums[c] then
+		tpe=tpe|TYPE_PANDEMONIUM
+		local ispen, isspell=Auxiliary.Pandemoniums[c]()
+		if not ispen then
+			tpe=tpe&~TYPE_PENDULUM
+		end
+		if c:IsPreviousLocation(LOCATION_PZONE) then
+			tpe=tpe|TYPE_TRAP
+			if not isspell then
+				tpe=tpe&~TYPE_SPELL
+			end
+		end
+	end
+	if Auxiliary.Polarities[c] then
+		tpe=tpe|TYPE_POLARITY
+		if not Auxiliary.Polarities[c]() then
+			tpe=tpe&~TYPE_SYNCHRO
+		end
+	end
+	return tpe
+end
 Card.GetLevel=function(c)
-	if c:IsHasEffect(EFFECT_STABLE) then return 0 end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return 0 end
 	return get_level(c)
 end
-local get_syn_level=Card.GetSynchroLevel
 GetSynchroLevel=function(c,sc)
-	if c:IsHasEffect(EFFECT_STABLE) then return 0 end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return 0 end
 	return get_syn_level(c,sc)
 end
-local get_rit_level=Card.GetRitualLevel
 Card.GetRitualLevel=function(c,rc)
-	if c:IsHasEffect(EFFECT_STABLE) then return 0 end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return 0 end
 	return get_rit_level(c,rc)
 end
-local get_orig_level=Card.GetOriginalLevel
 Card.GetOriginalLevel=function(c)
-	if c:IsHasEffect(EFFECT_STABLE) then return 0 end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return 0 end
 	return get_orig_level(c)
 end
-local is_xyz_level=Card.IsXyzLevel
 Card.IsXyzLevel=function(c,xyz,lv)
-	if c:IsHasEffect(EFFECT_STABLE) then return false end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return false end
 	return is_xyz_level(c,xyz,lv)
 end
-local get_prev_level_field=Card.GetPreviousLevelOnField
 Card.GetPreviousLevelOnField=function(c)
-	if c:IsHasEffect(EFFECT_STABLE) then return 0 end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return 0 end
 	return get_prev_level_field(c)
 end
-local is_level=Card.IsLevel
 Card.IsLevel=function(c,lv)
-	if c:IsHasEffect(EFFECT_STABLE) then return false end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return false end
 	return is_level(c,lv)
 end
-local is_level_below=Card.IsLevelBelow
 Card.IsLevelBelow=function(c,lv)
-	if c:IsHasEffect(EFFECT_STABLE) then return false end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return false end
 	return is_level_below(c,lv)
 end
-local is_level_above=Card.IsLevelAbove
 Card.IsLevelAbove=function(c,lv)
-	if c:IsHasEffect(EFFECT_STABLE) then return false end
+	if Auxiliary.Polarities[c] and not Auxiliary.Polarities[c]() then return false end
 	return is_level_above(c,lv)
 end
 
 --Custom Functions
 --Evolutes
 function Card.GetStage(c)
-	if not c:IsHasEffect(EFFECT_STAGE) then return 0 end
+	if not Auxiliary.Evolutes[c] then return 0 end
 	local te=c:GetCardEffect(EFFECT_STAGE)
 	if type(te:GetValue())=='function' then
 		return te:GetValue()(te,c)
@@ -162,6 +204,12 @@ function Card.IsCanBeEvoluteMaterial(c,ec)
 		if te:GetValue()(te,ec) then return false end
 	end
 	return true
+end
+function Auxiliary.AddOrigEvoluteType(c,isxyz)
+	table.insert(Auxiliary.Evolutes,c)
+	Auxiliary.Customs[c]=true
+	local isxyz=isxyz==nil and false or isxyz
+	Auxiliary.Evolutes[c]=function() return isxyz end
 end
 function Auxiliary.AddEvoluteProc(c,echeck,stage,...)
 	--echeck - extra check after everything is settled, stage - Evolute "level"
@@ -366,12 +414,14 @@ function Auxiliary.PendCondition()
 				return g:IsExists(Auxiliary.PaConditionFilter,1,nil,e,tp,lscale,rscale)
 			end
 end
+function Auxiliary.AddOrigPandemoniumType(c,ispendulum,is_spell)
+	table.insert(Auxiliary.Pandemoniums,c)
+	Auxiliary.Customs[c]=true
+	local ispendulum=ispendulum==nil and false or ispendulum
+	local is_spell=is_spell==nil and false or is_spell
+	Auxiliary.Pandemoniums[c]=function() return ispendulum, is_spell end
+end
 function Auxiliary.EnablePandemoniumAttribute(c,regfield,reghand,desc)
-	local e0=Effect.CreateEffect(c)
-	e0:SetType(EFFECT_TYPE_SINGLE)
-	e0:SetProperty(EFFECT_FLAG_CANNOT_DISABLE+EFFECT_FLAG_UNCOPYABLE)
-	e0:SetCode(EFFECT_PANDEMONIUM)
-	c:RegisterEffect(e0)
 	--summon
 	local e1=Effect.CreateEffect(c)
 	e1:SetType(EFFECT_TYPE_FIELD)
@@ -422,7 +472,7 @@ end
 function Auxiliary.PandActTarget(e,tp,eg,ep,ev,re,r,rp,chk)
 	if chk==0 then (e:GetLabel()~=LOCATION_HAND or e:GetHandler():IsHasEffect(EFFECT_TRAP_ACT_IN_HAND)) 
 		and (Duel.CheckLocation(tp,LOCATION_PZONE,0) or Duel.CheckLocation(tp,LOCATION_PZONE,1)) end
-	e:GetHandler():RegisterFlagEffect(EFFECT_STAGE+1,RESET_EVENT+0x1fe0000,0,0)
+	e:GetHandler():RegisterFlagEffect(EFFECT_PANDEMONIUM,RESET_EVENT+0x1fe0000,0,0)
 end
 function Auxiliary.PaConditionFilter(c,e,tp,lscale,rscale)
 	local lv=0
@@ -538,6 +588,12 @@ function Card.IsCanBePolarityMaterial(c,ec)
 		if te:GetValue()(te,ec) then return false end
 	end
 	return true
+end
+function Auxiliary.AddOrigPolarityType(c,issynchro)
+	table.insert(Auxiliary.Polarities,c)
+	Auxiliary.Customs[c]=true
+	local issynchro=issynchro==nil and false or issynchro
+	Auxiliary.Polarities[c]=function() return issynchro end
 end
 function Auxiliary.AddPolarityProc(c,stability,f1,f2)
 	local e1=Effect.CreateEffect(c)
