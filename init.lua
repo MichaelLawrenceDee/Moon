@@ -31,7 +31,7 @@ end
 
 --overwrite functions
 local get_rank, get_orig_rank, prev_rank_field, is_rank, is_rank_below, is_rank_above, get_type, is_type, get_orig_type, get_prev_type_field, get_level, get_syn_level, get_rit_level, get_orig_level, is_xyz_level, 
-	get_prev_level_field, is_level. is_level_below, is_level_above = 
+	get_prev_level_field, is_level, is_level_below, is_level_above = 
 	Card.GetRank, Card.GetOriginalRank, Card.GetPreviousRankOnField, Card.IsRank, Card.IsRankBelow, Card.IsRankAbove, Card.GetType, Card.IsType, Card.GetOriginalType, Card.GetPreviousTypeOnField, Card.GetLevel, 
 	Card.GetSynchroLevel, Card.GetRitualLevel, Card.GetOriginalLevel, Card.IsXyzLevel, Card.GetPreviousLevelOnField, Card.IsLevel, Card.IsLevelBelow, Card.IsLevelAbove
 
@@ -60,7 +60,7 @@ Card.IsRankAbove=function(c,rk)
 	return is_rank_above(c,rk)
 end
 Card.GetType=function(c,scard,sumtype,p)
-	local tpe=get_type(c,scard,sumtype,p)
+	local tpe=scard and get_type(c,scard,sumtype,p) or get_type(c)
 	if Auxiliary.Evolutes[c] then
 		tpe=tpe|TYPE_EVOLUTE
 		if not Auxiliary.Evolutes[c]() then
@@ -91,7 +91,7 @@ end
 Card.IsType=function(c,tpe,scard,sumtype,p)
 	local custpe=tpe>>32
 	local otpe=tpe&0xffffffff
-	if is_type(c,otpe,scard,sumtype,p) then return true end
+	if (scard and is_type(c,otpe,scard,sumtype,p)) or (not scard and is_type(c,otpe)) then return true end
 	if custpe<=0 then return false end
 	return c:IsCustomType(c,custpe,scard,sumtype,p)
 end
@@ -289,10 +289,10 @@ function Auxiliary.EvolCheckRecursive(c,tp,mg,sg,ec,stage,echeck,extramat,min,ma
 	sg:AddCard(c)
 	local res
 	if ... then
-		res=mg:IsExists(Auxiliary.ExEvolCheckRecursive,1,sg,tp,mg,sg,ec,stage,echeck,extramat,min,max,Group.CreateGroup())
+		res=mg:IsExists(Auxiliary.EvolCheckRecursive,1,sg,tp,mg,sg,ec,stage,echeck,extramat,min,max,...)
 	else
 		if min>0 then
-			res=mg:IsExists(Auxiliary.EvolCheckRecursive,1,sg,tp,mg,sg,ec,stage,...)
+			res=mg:IsExists(Auxiliary.ExEvolCheckRecursive,1,sg,tp,mg,sg,ec,stage,echeck,extramat,min,max,Group.CreateGroup())
 		else
 			res=(sg:CheckWithSumEqual(Auxiliary.EvoluteValue,stage,sg:GetCount(),sg:GetCount()) and (not echeck or echeck(sg,ec,tp)) and Duel.GetLocationCountFromEx(tp,tp,sg,ec)>0) 
 				or (max>0 and mg:IsExists(Auxiliary.ExEvolCheckRecursive,1,sg,tp,mg,sg,ec,stage,echeck,extramat,min,max,Group.CreateGroup()))
@@ -470,7 +470,7 @@ function Auxiliary.EnablePandemoniumAttribute(c,regfield,reghand,desc)
 	end
 end
 function Auxiliary.PandActTarget(e,tp,eg,ep,ev,re,r,rp,chk)
-	if chk==0 then (e:GetLabel()~=LOCATION_HAND or e:GetHandler():IsHasEffect(EFFECT_TRAP_ACT_IN_HAND)) 
+	if chk==0 then return (e:GetLabel()~=LOCATION_HAND or e:GetHandler():IsHasEffect(EFFECT_TRAP_ACT_IN_HAND)) 
 		and (Duel.CheckLocation(tp,LOCATION_PZONE,0) or Duel.CheckLocation(tp,LOCATION_PZONE,1)) end
 	e:GetHandler():RegisterFlagEffect(EFFECT_PANDEMONIUM,RESET_EVENT+0x1fe0000,0,0)
 end
@@ -641,7 +641,6 @@ function Auxiliary.PolarCheckRecursive2(g1,pc,stability)
 			end
 end
 function Auxiliary.PolarityCondition(f1,f2)
-	local funs={...}
 	return	function(e,c)
 				if c==nil then return true end
 				if c:IsType(TYPE_PENDULUM) and c:IsFaceup() then return false end
@@ -654,7 +653,6 @@ function Auxiliary.PolarityCondition(f1,f2)
 			end
 end
 function Auxiliary.PolarityTarget(f1,f2)
-	local funs={...}
 	return	function(e,tp,eg,ep,ev,re,r,rp,chk,c)
 				local mg=Duel.GetMatchingGroup(Auxiliary.PolarityMatFilter,tp,LOCATION_MZONE,0,nil,c,tp,f1,f2)
 				local g1=mg:Filter(f1,nil,c,tp)
